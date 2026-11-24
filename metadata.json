@@ -1,0 +1,6 @@
+{
+  "name": "PreventiCal - Plan Preventivo Google Calendar",
+  "description": "Generador de planes médicos preventivos anuales y hábitos saludables en formato JSON 100% compatible con Google Calendar API v3.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
