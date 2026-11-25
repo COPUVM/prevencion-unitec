@@ -208,7 +208,11 @@ export default function App() {
 
             {/* 3. SECCIÓN FINAL: Botón y herramienta para exportar todo a calendario */}
             <section>
-              <ExportCalendarFooter events={events} />
+              <ExportCalendarFooter
+                events={events}
+                profile={submittedPlan.profile}
+                requestDate={submittedPlan.requestDate}
+              />
             </section>
           </div>
         )}

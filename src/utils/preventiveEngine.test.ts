@@ -13,8 +13,15 @@ import {
 import {
   generateIcsContent,
   formatCalendarExportTitle,
+  isAppleMobileDevice,
+  isAndroidDevice,
   isMobileDevice,
 } from './exportCalendar.ts';
+import {
+  buildCalendarFeedUrl,
+  generateIcsFromQuery,
+  parseCalendarFeedQuery,
+} from './calendarFeed.ts';
 import type { UserHealthProfile } from '../types/calendar.ts';
 
 test('matrix contains all 14 preventive recommendations', () => {
@@ -175,26 +182,55 @@ test('generateIcsContent escapes text, appends - UNITEC Salud to each study, and
 });
 
 test('isMobileDevice detects iPhone, Android, and iPadOS while keeping Mac and PC desktop', () => {
-  assert.equal(
-    isMobileDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 5),
-    true
+  const iphoneUa = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15';
+  const androidUa = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36';
+  const macUa = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
+  const winUa = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+
+  assert.equal(isAppleMobileDevice(iphoneUa, 5), true);
+  assert.equal(isAppleMobileDevice(macUa, 5), true);
+  assert.equal(isAppleMobileDevice(macUa, 0), false);
+  assert.equal(isAndroidDevice(androidUa), true);
+  assert.equal(isAndroidDevice(iphoneUa), false);
+  assert.equal(isMobileDevice(iphoneUa, 5), true);
+  assert.equal(isMobileDevice(androidUa, 5), true);
+  assert.equal(isMobileDevice(macUa, 0), false);
+  assert.equal(isMobileDevice(winUa, 10), false);
+});
+
+test('calendarFeed round-trips profile into webcal URL and generates valid ICS with - UNITEC Salud', () => {
+  const reqDate = new Date('2026-11-25T15:00:00Z');
+  const urlStr = buildCalendarFeedUrl(
+    {
+      age: 32,
+      gender: 'female',
+      isSedentary: true,
+      riskFactors: {
+        smoking: true,
+        vaping: false,
+        alcohol: false,
+        ultraprocessed: false,
+      },
+      timeZone: 'America/Mexico_City',
+    },
+    reqDate,
+    'prevencion-unitec.vercel.app',
+    'webcal'
   );
-  assert.equal(
-    isMobileDevice('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36', 5),
-    true
-  );
-  assert.equal(
-    isMobileDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 5),
-    true
-  );
-  assert.equal(
-    isMobileDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 0),
-    false
-  );
-  assert.equal(
-    isMobileDevice('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 10),
-    false
-  );
+
+  assert.ok(urlStr.startsWith('webcal://prevencion-unitec.vercel.app/api/calendar.ics?'));
+  const parsedUrl = new URL(urlStr.replace(/^webcal:/, 'https:'));
+  const { profile, requestDate } = parseCalendarFeedQuery(parsedUrl.searchParams);
+  assert.equal(profile.age, 32);
+  assert.equal(profile.gender, 'female');
+  assert.equal(profile.isSedentary, true);
+  assert.equal(profile.riskFactors.smoking, true);
+  assert.equal(profile.riskFactors.vaping, false);
+  assert.equal(requestDate.getTime(), reqDate.getTime());
+
+  const ics = generateIcsFromQuery(parsedUrl.searchParams);
+  assert.ok(ics.includes('BEGIN:VCALENDAR'));
+  assert.ok(ics.includes('Citología cervical (Papanicolaou) - UNITEC Salud'));
 });
 
 test('createEmptyProfileDraft starts blank and validateProfileDraft enforces required fields', () => {

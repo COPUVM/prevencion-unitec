@@ -17,20 +17,41 @@ export function formatCalendarExportTitle(summary: string): string {
 }
 
 /**
+ * Detects Apple mobile/tablet devices (iPhone, iPad, iPod)
+ */
+export function isAppleMobileDevice(
+  userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : '',
+  maxTouchPoints: number = typeof navigator !== 'undefined' ? navigator.maxTouchPoints || 0 : 0
+): boolean {
+  if (/iPhone|iPad|iPod/i.test(userAgent)) {
+    return true;
+  }
+  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects Android devices
+ */
+export function isAndroidDevice(
+  userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+): boolean {
+  return /Android/i.test(userAgent);
+}
+
+/**
  * Detects mobile/tablet devices (iPhone, iPad, Android) while keeping Mac/Windows PCs on desktop flow
  */
 export function isMobileDevice(
   userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : '',
   maxTouchPoints: number = typeof navigator !== 'undefined' ? navigator.maxTouchPoints || 0 : 0
 ): boolean {
-  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
+  if (isAppleMobileDevice(userAgent, maxTouchPoints) || isAndroidDevice(userAgent)) {
     return true;
   }
-  // iPadOS Safari reports as Macintosh with touch points > 1
-  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) {
-    return true;
-  }
-  return false;
+  return /webOS|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
 }
 
 /**
