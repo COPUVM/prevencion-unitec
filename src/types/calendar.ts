@@ -79,3 +79,16 @@ export interface UserHealthProfile {
   year?: number;
   timeZone: string;
 }
+
+export interface ProfileDraft {
+  age: string;
+  gender: 'female' | 'male' | null;
+  isSedentary: boolean | null;
+  riskFactors: {
+    smoking: boolean;
+    vaping: boolean;
+    alcohol: boolean;
+    ultraprocessed: boolean;
+  };
+  timeZone: string;
+}

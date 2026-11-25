@@ -6,6 +6,34 @@
 import type { GoogleCalendarEvent } from '../types/calendar.ts';
 
 /**
+ * Appends institutional branding suffix to exported calendar event titles
+ */
+export function formatCalendarExportTitle(summary: string): string {
+  const trimmed = summary.trim();
+  if (trimmed.endsWith('- UNITEC Salud')) {
+    return trimmed;
+  }
+  return `${trimmed} - UNITEC Salud`;
+}
+
+/**
+ * Detects mobile/tablet devices (iPhone, iPad, Android) while keeping Mac/Windows PCs on desktop flow
+ */
+export function isMobileDevice(
+  userAgent: string = typeof navigator !== 'undefined' ? navigator.userAgent : '',
+  maxTouchPoints: number = typeof navigator !== 'undefined' ? navigator.maxTouchPoints || 0 : 0
+): boolean {
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
+    return true;
+  }
+  // iPadOS Safari reports as Macintosh with touch points > 1
+  if (/Macintosh/i.test(userAgent) && maxTouchPoints > 1) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Creates a direct Google Calendar web create URL for an individual event
  */
 export function generateGoogleCalendarWebLink(event: GoogleCalendarEvent): string {
@@ -23,8 +51,8 @@ export function generateGoogleCalendarWebLink(event: GoogleCalendarEvent): strin
 
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: event.summary,
-    details: `${event.description}\n\n[Plan Preventivo Anual - Prevención UNITEC]`,
+    text: formatCalendarExportTitle(event.summary),
+    details: `${event.description}\n\n[Plan Preventivo Anual - UNITEC Salud]`,
     dates: `${startUtc}/${endUtc}`,
     ctz: event.start.timeZone || 'UTC',
   });
@@ -55,10 +83,10 @@ export function generateIcsContent(events: GoogleCalendarEvent[]): string {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//PreventiCal//Plan Preventivo Anual//ES',
+    'PRODID:-//Prevencion UNITEC//Plan Preventivo Anual//ES',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Plan Preventivo Anual de Salud',
+    'X-WR-CALNAME:Plan Preventivo Anual - UNITEC Salud',
   ];
 
   events.forEach((event, index) => {
@@ -66,13 +94,14 @@ export function generateIcsContent(events: GoogleCalendarEvent[]): string {
     const dtStamp = formatIcsDate(new Date().toISOString());
     const dtStart = formatIcsDate(event.start.dateTime);
     const dtEnd = formatIcsDate(event.end.dateTime);
+    const exportedTitle = formatCalendarExportTitle(event.summary);
 
     lines.push('BEGIN:VEVENT');
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${dtStamp}`);
     lines.push(`DTSTART:${dtStart}`);
     lines.push(`DTEND:${dtEnd}`);
-    lines.push(`SUMMARY:${escapeIcsText(event.summary)}`);
+    lines.push(`SUMMARY:${escapeIcsText(exportedTitle)}`);
     lines.push(`DESCRIPTION:${escapeIcsText(event.description)}`);
 
     if (event.recurrence) {
@@ -86,7 +115,7 @@ export function generateIcsContent(events: GoogleCalendarEvent[]): string {
       const firstOverride = event.reminders.overrides[0];
       lines.push('BEGIN:VALARM');
       lines.push('ACTION:DISPLAY');
-      lines.push(`DESCRIPTION:${escapeIcsText(event.summary)}`);
+      lines.push(`DESCRIPTION:${escapeIcsText(exportedTitle)}`);
       lines.push(`TRIGGER:-PT${firstOverride.minutes}M`);
       lines.push('END:VALARM');
     }
@@ -96,6 +125,50 @@ export function generateIcsContent(events: GoogleCalendarEvent[]): string {
 
   lines.push('END:VCALENDAR');
   return lines.join('\r\n');
+}
+
+/**
+ * On mobile (iPhone / Android), triggers the native OS share/app picker with the .ics file
+ * so the user can choose their calendar app directly. On desktop (Mac / PC) or unsupported browsers,
+ * falls back to downloading the .ics file as usual.
+ */
+export async function shareOrDownloadCalendarFile(
+  events: GoogleCalendarEvent[],
+  filename: string = 'plan_preventivo_unitec.ics'
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const icsContent = generateIcsContent(events);
+
+  if (
+    isMobileDevice() &&
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof File !== 'undefined'
+  ) {
+    try {
+      const file = new File([icsContent], filename, {
+        type: 'text/calendar;charset=utf-8',
+      });
+      const canShareFiles =
+        typeof navigator.canShare === 'function' ? navigator.canShare({ files: [file] }) : true;
+
+      if (canShareFiles) {
+        await navigator.share({
+          files: [file],
+          title: 'Plan Médico Preventivo - UNITEC Salud',
+          text: 'Abre este archivo con tu aplicación de calendario para agendar tus estudios preventivos.',
+        });
+        return 'shared';
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return 'cancelled';
+      }
+      // If Web Share fails (e.g., restricted iframe or unsupported MIME), fall through to download
+    }
+  }
+
+  downloadStringAsFile(icsContent, filename, 'text/calendar;charset=utf-8');
+  return 'downloaded';
 }
 
 /**

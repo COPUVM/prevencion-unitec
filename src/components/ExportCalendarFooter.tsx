@@ -3,10 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { GoogleCalendarEvent } from '../types/calendar.ts';
-import { generateIcsContent, downloadStringAsFile } from '../utils/exportCalendar.ts';
-import { Calendar, Download, Check, HelpCircle } from 'lucide-react';
+import {
+  generateIcsContent,
+  downloadStringAsFile,
+  isMobileDevice,
+  shareOrDownloadCalendarFile,
+} from '../utils/exportCalendar.ts';
+import { Calendar, Download, Check, HelpCircle, Share2 } from 'lucide-react';
 
 interface ExportCalendarFooterProps {
   events: GoogleCalendarEvent[];
@@ -14,9 +19,55 @@ interface ExportCalendarFooterProps {
 
 export const ExportCalendarFooter: React.FC<ExportCalendarFooterProps> = ({ events }) => {
   const [downloaded, setDownloaded] = useState(false);
+  const [sharedSuccess, setSharedSuccess] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [useMobileShare, setUseMobileShare] = useState(false);
 
-  const handleDownloadFullCalendar = () => {
+  useEffect(() => {
+    try {
+      const mobile = isMobileDevice();
+      if (
+        mobile &&
+        typeof navigator !== 'undefined' &&
+        typeof navigator.share === 'function' &&
+        typeof File !== 'undefined'
+      ) {
+        if (typeof navigator.canShare === 'function') {
+          const probe = new File(['BEGIN:VCALENDAR\r\nEND:VCALENDAR'], 'plan.ics', {
+            type: 'text/calendar;charset=utf-8',
+          });
+          setUseMobileShare(navigator.canShare({ files: [probe] }));
+        } else {
+          setUseMobileShare(true);
+        }
+      }
+    } catch {
+      setUseMobileShare(false);
+    }
+  }, []);
+
+  const handlePrimaryExport = async () => {
+    if (useMobileShare) {
+      const result = await shareOrDownloadCalendarFile(events, 'plan_preventivo_unitec.ics');
+      if (result === 'shared') {
+        setSharedSuccess(true);
+        setTimeout(() => setSharedSuccess(false), 3000);
+      } else if (result === 'downloaded') {
+        setDownloaded(true);
+        setShowInstructions(true);
+        setTimeout(() => setDownloaded(false), 3000);
+      }
+      return;
+    }
+
+    const icsContent = generateIcsContent(events);
+    downloadStringAsFile(icsContent, 'plan_preventivo_unitec.ics', 'text/calendar');
+    setDownloaded(true);
+    setShowInstructions(true);
+    setTimeout(() => setDownloaded(false), 3000);
+  };
+
+  const handleFallbackDownload = () => {
     const icsContent = generateIcsContent(events);
     downloadStringAsFile(icsContent, 'plan_preventivo_unitec.ics', 'text/calendar');
     setDownloaded(true);
@@ -39,22 +90,34 @@ export const ExportCalendarFooter: React.FC<ExportCalendarFooterProps> = ({ even
               Exportar plan anual a mi calendario
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Descarga tu archivo de calendario universal (.ICS) con tus {events.length} estudios y valoraciones preventivas para importarlo en cualquier plataforma.
+              {useMobileShare
+                ? `Elige tu aplicación de calendario favorita en tu celular para guardar tus ${events.length} estudios y valoraciones preventivas.`
+                : `Descarga tu archivo de calendario universal (.ICS) con tus ${events.length} estudios y valoraciones preventivas para importarlo en cualquier plataforma.`}
             </p>
           </div>
         </div>
 
         {/* Action Button */}
-        <div className="flex items-center shrink-0">
+        <div className="flex flex-col items-stretch sm:items-end gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={handleDownloadFullCalendar}
+            onClick={handlePrimaryExport}
             className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#F68B1F] via-[#E87E13] to-[#D56B02] hover:from-[#FA9938] hover:to-[#E57A0F] text-white text-xs font-extrabold shadow-lg shadow-[#F68B1F]/30 hover:shadow-xl hover:shadow-[#F68B1F]/40 active:scale-95 transition-all cursor-pointer"
           >
-            {downloaded ? (
+            {sharedSuccess ? (
+              <>
+                <Check className="w-4 h-4 text-white" />
+                <span>¡Plan enviado a tu calendario!</span>
+              </>
+            ) : downloaded ? (
               <>
                 <Check className="w-4 h-4 text-white" />
                 <span>¡Calendario descargado (.ICS)!</span>
+              </>
+            ) : useMobileShare ? (
+              <>
+                <Share2 className="w-4 h-4 text-white" />
+                <span>Abrir en mi app de calendario</span>
               </>
             ) : (
               <>
@@ -63,6 +126,16 @@ export const ExportCalendarFooter: React.FC<ExportCalendarFooterProps> = ({ even
               </>
             )}
           </button>
+
+          {useMobileShare && (
+            <button
+              type="button"
+              onClick={handleFallbackDownload}
+              className="text-[11px] font-semibold text-[#006FBA] hover:text-[#00529B] underline underline-offset-2 text-center sm:text-right cursor-pointer"
+            >
+              O descargar archivo .ICS directamente
+            </button>
+          )}
         </div>
       </div>
 

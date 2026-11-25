@@ -6,9 +6,15 @@ import {
   DEFAULT_PROFILE,
   getActiveRiskFactorKeys,
   getRollingMonths,
+  createEmptyProfileDraft,
+  validateProfileDraft,
   PREVENTIVE_MATRIX,
 } from './preventiveEngine.ts';
-import { generateIcsContent } from './exportCalendar.ts';
+import {
+  generateIcsContent,
+  formatCalendarExportTitle,
+  isMobileDevice,
+} from './exportCalendar.ts';
 import type { UserHealthProfile } from '../types/calendar.ts';
 
 test('matrix contains all 14 preventive recommendations', () => {
@@ -149,7 +155,7 @@ test('rolling months advance to next month when requested late in the month (>= 
   }
 });
 
-test('generateIcsContent escapes text and produces valid VCALENDAR output with rolling future DTSTART', () => {
+test('generateIcsContent escapes text, appends - UNITEC Salud to each study, and uses rolling future DTSTART', () => {
   const reqDate = new Date('2026-11-24T18:00:00Z');
   const events = generatePreventivePlan(DEFAULT_PROFILE, reqDate);
   const ics = generateIcsContent(events);
@@ -157,4 +163,75 @@ test('generateIcsContent escapes text and produces valid VCALENDAR output with r
   assert.ok(ics.includes('END:VCALENDAR'));
   assert.ok(ics.includes('BEGIN:VEVENT'));
   assert.ok(ics.includes('DTSTART:20270212T'), 'Feb study requested in Nov 2026 should land in Feb 2027');
+  assert.ok(ics.includes('Mastografía bilateral - UNITEC Salud'), 'Each exported study must include - UNITEC Salud');
+  assert.equal(
+    formatCalendarExportTitle('🩸 Glucosa en ayunas'),
+    '🩸 Glucosa en ayunas - UNITEC Salud'
+  );
+  assert.equal(
+    formatCalendarExportTitle('🩸 Glucosa en ayunas - UNITEC Salud'),
+    '🩸 Glucosa en ayunas - UNITEC Salud'
+  );
+});
+
+test('isMobileDevice detects iPhone, Android, and iPadOS while keeping Mac and PC desktop', () => {
+  assert.equal(
+    isMobileDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 5),
+    true
+  );
+  assert.equal(
+    isMobileDevice('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36', 5),
+    true
+  );
+  assert.equal(
+    isMobileDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 5),
+    true
+  );
+  assert.equal(
+    isMobileDevice('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 0),
+    false
+  );
+  assert.equal(
+    isMobileDevice('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 10),
+    false
+  );
+});
+
+test('createEmptyProfileDraft starts blank and validateProfileDraft enforces required fields', () => {
+  const empty = createEmptyProfileDraft();
+  assert.equal(empty.age, '');
+  assert.equal(empty.gender, null);
+  assert.equal(empty.isSedentary, null);
+  assert.deepEqual(empty.riskFactors, {
+    smoking: false,
+    vaping: false,
+    alcohol: false,
+    ultraprocessed: false,
+  });
+
+  const invalidResult = validateProfileDraft(empty);
+  assert.equal(invalidResult.profile, null);
+  assert.ok(invalidResult.errors.age);
+  assert.ok(invalidResult.errors.gender);
+  assert.ok(invalidResult.errors.isSedentary);
+
+  const outOfRangeResult = validateProfileDraft({
+    ...empty,
+    age: '15',
+    gender: 'female',
+    isSedentary: false,
+  });
+  assert.equal(outOfRangeResult.profile, null);
+  assert.ok(outOfRangeResult.errors.age);
+
+  const validResult = validateProfileDraft({
+    ...empty,
+    age: '32',
+    gender: 'female',
+    isSedentary: false,
+  });
+  assert.deepEqual(validResult.errors, {});
+  assert.equal(validResult.profile?.age, 32);
+  assert.equal(validResult.profile?.gender, 'female');
+  assert.equal(validResult.profile?.isSedentary, false);
 });

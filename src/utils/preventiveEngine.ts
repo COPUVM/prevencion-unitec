@@ -6,6 +6,7 @@
 import type {
   GoogleCalendarEvent,
   PreventiveMatrixRow,
+  ProfileDraft,
   RiskFactorKey,
   ScheduledPreventiveStudy,
   UserHealthProfile,
@@ -307,6 +308,68 @@ export const DEFAULT_PROFILE: UserHealthProfile = {
   },
   timeZone: getDefaultTimeZone(),
 };
+
+export function createEmptyProfileDraft(): ProfileDraft {
+  return {
+    age: '',
+    gender: null,
+    isSedentary: null,
+    riskFactors: {
+      smoking: false,
+      vaping: false,
+      alcohol: false,
+      ultraprocessed: false,
+    },
+    timeZone: getDefaultTimeZone(),
+  };
+}
+
+export interface ProfileValidationErrors {
+  age?: string;
+  gender?: string;
+  isSedentary?: string;
+}
+
+export function validateProfileDraft(draft: ProfileDraft): {
+  profile: UserHealthProfile | null;
+  errors: ProfileValidationErrors;
+} {
+  const errors: ProfileValidationErrors = {};
+  const trimmedAge = draft.age.trim();
+  const parsedAge = Number(trimmedAge);
+
+  if (
+    !trimmedAge ||
+    !Number.isInteger(parsedAge) ||
+    parsedAge < 18 ||
+    parsedAge > 95
+  ) {
+    errors.age = 'Selecciona una edad entre 18 y 95 años.';
+  }
+
+  if (draft.gender !== 'female' && draft.gender !== 'male') {
+    errors.gender = 'Selecciona tu sexo.';
+  }
+
+  if (draft.isSedentary === null) {
+    errors.isSedentary = 'Selecciona tu nivel de actividad física semanal.';
+  }
+
+  if (Object.keys(errors).length > 0 || draft.gender === null || draft.isSedentary === null) {
+    return { profile: null, errors };
+  }
+
+  return {
+    profile: {
+      age: parsedAge,
+      gender: draft.gender,
+      isSedentary: draft.isSedentary,
+      riskFactors: { ...draft.riskFactors },
+      timeZone: draft.timeZone,
+    },
+    errors: {},
+  };
+}
 
 export interface RollingMonthSlot {
   year: number;

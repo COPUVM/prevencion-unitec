@@ -8,9 +8,10 @@ import { Mail, Shield } from 'lucide-react';
 
 interface HeaderProps {
   onOpenEmail: () => void;
+  showEmailButton?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenEmail }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenEmail, showEmailButton = true }) => {
   return (
     <header className="bg-white/90 backdrop-blur-md border-b border-[#006FBA]/10 shadow-[0_4px_25px_rgba(0,111,186,0.05)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -32,16 +33,19 @@ export const Header: React.FC<HeaderProps> = ({ onOpenEmail }) => {
         </div>
 
         {/* Action: Enviar por email in aesthetic UNITEC button */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenEmail}
-            title="Enviar resumen del plan preventivo por correo electrónico"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#F68B1F] to-[#E07208] hover:from-[#FA9938] hover:to-[#EB7D15] text-white text-xs font-bold shadow-md shadow-[#F68B1F]/30 hover:shadow-lg hover:shadow-[#F68B1F]/40 active:scale-95 transition-all cursor-pointer"
-          >
-            <Mail className="w-4 h-4 text-white" />
-            <span>Enviar por email</span>
-          </button>
-        </div>
+        {showEmailButton && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenEmail}
+              title="Enviar resumen del plan preventivo por correo electrónico"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#F68B1F] to-[#E07208] hover:from-[#FA9938] hover:to-[#EB7D15] text-white text-xs font-bold shadow-md shadow-[#F68B1F]/30 hover:shadow-lg hover:shadow-[#F68B1F]/40 active:scale-95 transition-all cursor-pointer"
+            >
+              <Mail className="w-4 h-4 text-white" />
+              <span>Enviar por email</span>
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );
